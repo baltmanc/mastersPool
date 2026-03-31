@@ -116,6 +116,7 @@
       <p><span class="status-dot" id="statusDot"></span><span id="statusText">Loading scores...</span></p>
     </div>
     <div style="display:flex;align-items:center;gap:10px">
+      <span id="lastUpdated" style="font-size:12px;color:rgba(255,255,255,.85)">Last updated: --</span>
       <button class="refresh-btn" onclick="loadData()">
         <svg id="refreshIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
         Refresh
@@ -159,12 +160,14 @@ const TIERS = {
 // Replace placeholder names with your real players and their picks.
 // Add or remove player entries to match your group size.
 // Format: 'Player Name': { 'Tier 1': 'Golfer Name', 'Tier 2': '...', ... }
+// Placeholder, lets develop a way for users to input their own teams without editing code in the future.
 const PICKS = {
   'Jonah M':    {'Tier 1':'Rory McIlroy',      'Tier 2':'Jon Rahm',         'Tier 3':'Jordan Spieth',   'Tier 4':'Robert MacIntyre', 'Tier 5':'Patrick Reed',   'Tier 6':'Sungjae Im',     'Tier 7':'Corey Conners'},
   'Dave/Matt':  {'Tier 1':'Scottie Scheffler',  'Tier 2':'Collin Morikawa',  'Tier 3':'Tommy Fleetwood', 'Tier 4':'Min Woo Lee',      'Tier 5':'Max Homa',       'Tier 6':'Wyndham Clark',  'Tier 7':'Daniel Berger'},
   'Matt G':     {'Tier 1':'Bryson DeChambeau',  'Tier 2':'Justin Thomas',    'Tier 3':'Viktor Hovland',  'Tier 4':'Hideki Matsuyama', 'Tier 5':'Dustin Johnson', 'Tier 6':'Harris English', 'Tier 7':'Maverick McNealy'},
   'Andy U':     {'Tier 1':'Xander Schauffele',  'Tier 2':'Brooks Koepka',    'Tier 3':'Cameron Young',   'Tier 4':'Patrick Cantlay',  'Tier 5':'Tyrrell Hatton', 'Tier 6':'Sam Burns',      'Tier 7':'Aaron Rai'},
-  'Brendan AC': {'Tier 1':'Ludvig Åberg',       'Tier 2':'Matt Fitzpatrick', 'Tier 3':'Chris Gotterup',  'Tier 4':'Shane Lowry',      'Tier 5':'Russell Henley', 'Tier 6':'Brian Harman',   'Tier 7':'Rasmus Højgaard'},
+  'Brendan AC': {'Tier 1':'Rory McIlroy',       'Tier 2':'Matt Fitzpatrick', 'Tier 3':'Chris Gotterup',  'Tier 4':'Shane Lowry',      'Tier 5':'Russell Henley', 'Tier 6':'Brian Harman',   'Tier 7':'Rasmus Højgaard'},
+  'Brett':      {'Tier 1':'Rory McIlroy',       'Tier 2':'Brooks Koepka', 'Tier 3':'Tommy Fleetwood',  'Tier 4':'Shane Lowry',      'Tier 5':'Patrick Reed', 'Tier 6':'Brian Harman',   'Tier 7':'Aaron Rai'},
   // Add more players here:
   // 'New Player': {'Tier 1':'...','Tier 2':'...','Tier 3':'...','Tier 4':'...','Tier 5':'...','Tier 6':'...','Tier 7':'...'},
 };
@@ -223,6 +226,8 @@ async function loadData(){
     leaderboardData = getFallbackData();
     setStatus('error','Using 2025 demo data — tournament not yet live');
   }
+  const nowLabel = new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('lastUpdated').textContent = 'Last updated: '+nowLabel;
   document.getElementById('refreshIcon').classList.remove('spinning');
   renderAll();
 }
@@ -286,7 +291,7 @@ function renderStandings(){
   // Check if picks are placeholders
   const pickCount = Object.keys(PICKS).length;
   if(PICKS['Player 6'] || pickCount < 2){
-    html += `<div class="note-banner">⚠️ Picks are placeholders — update the PICKS object in the code before the tournament.</div>`;
+    html += `<div class="note-banner"> Picks are placeholders — update the PICKS object in the code before the tournament.</div>`;
   }
 
   html += '<div class="stats-row">';
@@ -481,6 +486,7 @@ function getFallbackData(){
 
 // -- INIT --------------------------------------------------------
 loadData();
+setInterval(loadData, 60000);//refresh every minute
 </script>
 </body>
 </html>
