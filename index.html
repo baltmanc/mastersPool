@@ -343,8 +343,15 @@ function toggleCard(id, card){
 function renderLeaderboard(){
   const pickedBy = {};
   Object.entries(PICKS).forEach(([player, picks]) => {
-    Object.values(picks).forEach(g => { pickedBy[normName(g)] = player; });
+  Object.values(picks).forEach(g => {
+    const key = normName(g);
+    if (pickedBy[key]) {
+      pickedBy[key] = pickedBy[key] + ', ' + player;
+    } else {
+      pickedBy[key] = player;
+    }
   });
+});
   const active = leaderboardData.filter(p => !p.cut);
   const cut    = leaderboardData.filter(p =>  p.cut);
 
