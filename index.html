@@ -59,6 +59,7 @@
   .golfer-score.even{color:#666}
   .golfer-score.over{color:#dc2626}
   .golfer-score.cut{color:#aaa}
+  .score-multiplier{display:block;font-size:10px;font-weight:500;color:#92400e;line-height:1.1;margin-top:2px}
   .golfer-thru{min-width:40px;text-align:right;font-size:12px;color:#aaa}
   .golfer-row.cut-row{opacity:.5}
 
@@ -310,14 +311,14 @@ function calcStandings(){
     let total = 0, count = 0;
     const details = Object.entries(picks).map(([tier, golferName]) => {
       const found = findPlayer(golferName, leaderboardData);
-      let score = null, pos = '-', thru = '-', isCut = false;
+      let score = null, scoringScore = null, pos = '-', thru = '-', isCut = false;
       if(found){ score = found.total; pos = found.pos; thru = found.thru; isCut = found.cut; }
       if(score !== null){
-        const scoringScore = isCut ? score * 2 : score;
+        scoringScore = isCut ? score * 2 : score;
         total += scoringScore;
         count++;
       }
-      return { tier, golferName, score, pos, thru, isCut, found: !!found };
+      return { tier, golferName, score, scoringScore, pos, thru, isCut, found: !!found };
     });
     return { player, totalScore: count > 0 ? total : null, details };
   }).sort((a,b) => {
@@ -360,13 +361,14 @@ function renderStandings(){
       <div class="sc-details" id="card-${i}">
         <div class="golfer-rows">`;
     s.details.forEach(g => {
-      const gs = g.score !== null ? fmtScore(g.score) : (g.found ? '-' : 'TBD');
-      const gc = g.found ? scoreClass(g.score, g.isCut) : 'even';
+      const gs = g.scoringScore !== null ? fmtScore(g.scoringScore) : (g.found ? '-' : 'TBD');
+      const gc = g.found ? scoreClass(g.scoringScore, g.isCut) : 'even';
+      const multiplier = g.isCut && g.score !== null ? `<span class="score-multiplier">x2 from ${fmtScore(g.score)}</span>` : '';
       html += `<div class="golfer-row${g.isCut?' cut-row':''}">
         <span class="tier-badge">${g.tier}</span>
         <span class="golfer-name">${g.golferName}</span>
         <span class="golfer-pos">${g.pos}</span>
-        <span class="golfer-score ${gc}">${gs}</span>
+        <span class="golfer-score ${gc}">${gs}${multiplier}</span>
         <span class="golfer-thru">${g.thru}</span>
       </div>`;
     });
