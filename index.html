@@ -148,29 +148,20 @@ const API_URL = 'https://live-golf-data.p.rapidapi.com/leaderboard?orgId=1&tourn
 // Edit the golfer names in each tier to match the 2026 field.
 const TIERS = {
   'Tier 1': ['Scottie Scheffler','Rory McIlroy','Bryson DeChambeau','Ludvig Åberg','Xander Schauffele'],
-  'Tier 2': ['Jon Rahm','Brooks Koepka','Collin Morikawa','Justin Thomas','Matt Fitzpatrick'],
-  'Tier 3': ['Jordan Spieth','Viktor Hovland','Cameron Young','Tommy Fleetwood','Chris Gotterup'],
+  'Tier 2': ['Jon Rahm','Collin Morikawa','Justin Thomas','Matt Fitzpatrick','Cameron Young'],
+  'Tier 3': ['Jordan Spieth','Viktor Hovland','Tommy Fleetwood','Chris Gotterup','Brooks Koepka'],
   'Tier 4': ['Robert MacIntyre','Patrick Cantlay','Min Woo Lee','Hideki Matsuyama','Shane Lowry'],
   'Tier 5': ['Patrick Reed','Justin Rose','Tyrrell Hatton','Russell Henley','Akshay Bhatia','Max Homa','J.J. Spaun','Dustin Johnson','Keegan Bradley','Cameron Smith'],
   'Tier 6': ['Sepp Straka','Sungjae Im','Si Woo Kim','Kurt Kitayama','Ben Griffin','Brian Harman','Harris English','Brian Campbell','Sam Burns','Wyndham Clark'],
-  'Tier 7': ['Jacob Bridgeman','Ryan Fox','Nico Echavarria','Corey Conners','Nicolai Højgaard','Rasmus Højgaard','Maverick McNealy','Aldrich Potgieter','Marco Penge','Gary Woodland','Naoyuki Kataoka','Andrew Novak','Jake Knapp','Alex Noren','Daniel Berger','Aaron Rai'],
+  'Tier 7': ['Jacob Bridgeman','Ryan Fox','Nico Echavarria','Nick Taylor','Corey Conners','Nicolai Højgaard','Rasmus Højgaard','Maverick McNealy','Aldrich Potgieter','Marco Penge','Gary Woodland','Naoyuki Kataoka','Andrew Novak','Jake Knapp','Alex Noren','Daniel Berger','Aaron Rai'],
 };
 
 // -- PICKS -------------------------------------------------------
-// Replace placeholder names with your real players and their picks.
-// Add or remove player entries to match your group size.
-// Format: 'Player Name': { 'Tier 1': 'Golfer Name', 'Tier 2': '...', ... }
-// Placeholder, lets develop a way for users to input their own teams without editing code in the future.
-const PICKS = {
-  'Jonah M':    {'Tier 1':'Rory McIlroy',      'Tier 2':'Jon Rahm',         'Tier 3':'Jordan Spieth',   'Tier 4':'Robert MacIntyre', 'Tier 5':'Patrick Reed',   'Tier 6':'Sungjae Im',     'Tier 7':'Corey Conners'},
-  'Dave/Matt':  {'Tier 1':'Scottie Scheffler',  'Tier 2':'Collin Morikawa',  'Tier 3':'Tommy Fleetwood', 'Tier 4':'Min Woo Lee',      'Tier 5':'Max Homa',       'Tier 6':'Wyndham Clark',  'Tier 7':'Daniel Berger'},
-  'Matt G':     {'Tier 1':'Bryson DeChambeau',  'Tier 2':'Justin Thomas',    'Tier 3':'Viktor Hovland',  'Tier 4':'Hideki Matsuyama', 'Tier 5':'Dustin Johnson', 'Tier 6':'Harris English', 'Tier 7':'Maverick McNealy'},
-  'Andy U':     {'Tier 1':'Xander Schauffele',  'Tier 2':'Brooks Koepka',    'Tier 3':'Cameron Young',   'Tier 4':'Patrick Cantlay',  'Tier 5':'Tyrrell Hatton', 'Tier 6':'Sam Burns',      'Tier 7':'Aaron Rai'},
-  'Brendan AC': {'Tier 1':'Rory McIlroy',       'Tier 2':'Matt Fitzpatrick', 'Tier 3':'Chris Gotterup',  'Tier 4':'Shane Lowry',      'Tier 5':'Russell Henley', 'Tier 6':'Brian Harman',   'Tier 7':'Rasmus Højgaard'},
-  'Brett':      {'Tier 1':'Rory McIlroy',       'Tier 2':'Brooks Koepka', 'Tier 3':'Tommy Fleetwood',  'Tier 4':'Shane Lowry',      'Tier 5':'Patrick Reed', 'Tier 6':'Brian Harman',   'Tier 7':'Aaron Rai'},
-  // Add more players here:
-  // 'New Player': {'Tier 1':'...','Tier 2':'...','Tier 3':'...','Tier 4':'...','Tier 5':'...','Tier 6':'...','Tier 7':'...'},
-};
+// Loaded live from Google Sheet via Apps Script.
+// Falls back to hardcoded values if the sheet can't be reached.
+const PICKS_API_URL = 'https://script.google.com/macros/s/AKfycbz7hoXTELq0vQ5S0LgT0SFw3kopDwodmwKPmzLKll7EYzqb5xIOyEf2UQMNKNllHZ93Mg/exec';
+
+let PICKS = {}; // populated on load from Google Sheet
 
 // ================================================================
 //  APP CODE — no need to edit below this line
@@ -210,6 +201,60 @@ function scoreClass(s, isCut){
 async function loadData(){
   setStatus('loading','Refreshing scores...');
   document.getElementById('refreshIcon').classList.add('spinning');
+
+  // Fetch picks and scores in parallel
+  const [picksOk, scoresOk] = await Promise.all([loadPicks(), loadScores()]);
+
+  const nowLabel = new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  document.getElementById('lastUpdated').textContent = 'Last updated: '+nowLabel;
+  document.getElementById('refreshIcon').classList.remove('spinning');
+
+  if(scoresOk && picksOk){
+    setStatus('live','Live · '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
+  } else if(!scoresOk){
+    setStatus('error','Using 2025 demo data — tournament not yet live');
+  } else {
+    setStatus('error','Could not load picks from Google Sheet');
+  }
+
+  renderAll();
+}
+
+async function loadPicks(){
+  try {
+    const res = await fetch(PICKS_API_URL);
+    if(!res.ok) throw new Error('picks API '+res.status);
+    const json = await res.json();
+    const rows = json.picks || json;
+    if(!Array.isArray(rows) || !rows.length) throw new Error('empty');
+
+    PICKS = {};
+    rows.forEach(row => {
+      const name = (row.name || row['Full Name'] || '').trim();
+      if(!name) return;
+      // Prefer write-in for Tier 7, fall back to dropdown
+      const tier7 = (row.tier7WriteIn || row['If you chose another golfer for tier 7'] || '').trim()
+                 || (row.tier7 || row['Tier #7'] || '').trim();
+      PICKS[name] = {
+        'Tier 1': (row.tier1 || row['Tier #1'] || '').trim(),
+        'Tier 2': (row.tier2 || row['Tier #2'] || '').trim(),
+        'Tier 3': (row.tier3 || row['Tier #3'] || '').trim(),
+        'Tier 4': (row.tier4 || row['Tier #4'] || '').trim(),
+        'Tier 5': (row.tier5 || row['Tier #5'] || '').trim(),
+        'Tier 6': (row.tier6 || row['Tier #6'] || '').trim(),
+        'Tier 7': tier7,
+        tiebreaker1: (row.tiebreaker1 || row['Tie Breaker #1'] || '').trim(),
+        tiebreaker2: (row.tiebreaker2 || row['Tie Breaker #2'] || '').trim(),
+      };
+    });
+    return true;
+  } catch(e) {
+    console.warn('Picks load failed:', e);
+    return false;
+  }
+}
+
+async function loadScores(){
   try {
     const res = await fetch(API_URL,{
       headers:{
@@ -221,15 +266,11 @@ async function loadData(){
     const json = await res.json();
     leaderboardData = parseLeaderboard(json);
     if(!leaderboardData.length) throw new Error('empty');
-    setStatus('live','Live · '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
+    return true;
   } catch(e){
     leaderboardData = getFallbackData();
-    setStatus('error','Using 2025 demo data — tournament not yet live');
+    return false;
   }
-  const nowLabel = new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  document.getElementById('lastUpdated').textContent = 'Last updated: '+nowLabel;
-  document.getElementById('refreshIcon').classList.remove('spinning');
-  renderAll();
 }
 
 function parseLeaderboard(json){
@@ -271,7 +312,11 @@ function calcStandings(){
       const found = findPlayer(golferName, leaderboardData);
       let score = null, pos = '-', thru = '-', isCut = false;
       if(found){ score = found.total; pos = found.pos; thru = found.thru; isCut = found.cut; }
-      if(score !== null){ total += score; count++; }
+      if(score !== null){
+        const scoringScore = isCut ? score * 2 : score;
+        total += scoringScore;
+        count++;
+      }
       return { tier, golferName, score, pos, thru, isCut, found: !!found };
     });
     return { player, totalScore: count > 0 ? total : null, details };
@@ -288,10 +333,9 @@ function renderStandings(){
   const leader = standings[0];
   let html = '';
 
-  // Check if picks are placeholders
-  const pickCount = Object.keys(PICKS).length;
-  if(PICKS['Player 6'] || pickCount < 2){
-    html += `<div class="note-banner"> Picks are placeholders — update the PICKS object in the code before the tournament.</div>`;
+  // Warn if picks couldn't be loaded from sheet
+  if(!Object.keys(PICKS).length){
+    html += `<div class="note-banner">⚠️ Could not load picks from Google Sheet — check the Apps Script URL and refresh.</div>`;
   }
 
   html += '<div class="stats-row">';
@@ -394,7 +438,7 @@ function renderTiers(){
   let html = '<div class="tiers-grid">';
 
   // Picks table
-  html += `<div class="tier-card"><div class="tier-head">All picks</div><div style="overflow-x:auto">
+  html += `<div class="tier-card"><div class="tier-head">All picks (${Object.keys(PICKS).length} entries)</div><div style="overflow-x:auto">
     <table style="width:100%;font-size:12px;border-collapse:collapse">
     <tr style="background:#f5f5f0">
       <td style="padding:8px 14px;font-weight:500;white-space:nowrap">Player</td>`;
