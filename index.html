@@ -49,6 +49,8 @@
   .sc-chevron.open{transform:rotate(180deg)}
   .sc-details{display:none;margin-top:12px;padding-top:12px;border-top:1px solid #e8e8e0}
   .sc-details.show{display:block}
+  .sc-tiebreakers{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .tiebreaker-pill{font-size:11px;padding:4px 8px;border-radius:999px;background:#f5f5f0;color:#666;border:1px solid #e0e0d8}
   .golfer-rows{display:flex;flex-direction:column;gap:6px}
   .golfer-row{display:flex;align-items:center;gap:8px;font-size:13px}
   .tier-badge{font-size:11px;padding:2px 7px;border-radius:20px;background:#f0f0e8;color:#666;min-width:48px;text-align:center;flex-shrink:0}
@@ -306,10 +308,27 @@ function setStatus(state, msg){
   document.getElementById('statusText').textContent = msg;
 }
 
+function parseTiebreakerValue(value){
+  if(value === null || value === undefined || value === '') return null;
+  const parsed = parseInt(String(value).trim(), 10);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function compareTiebreakers(a, b){
+  if(a === null && b === null) return 0;
+  if(a === null) return 1;
+  if(b === null) return -1;
+  return a - b;
+}
+
 function calcStandings(){
+  const tierKeys = Object.keys(TIERS);
   return Object.entries(PICKS).map(([player, picks]) => {
     let total = 0, count = 0;
-    const details = Object.entries(picks).map(([tier, golferName]) => {
+    const tiebreaker1 = parseTiebreakerValue(picks.tiebreaker1);
+    const tiebreaker2 = parseTiebreakerValue(picks.tiebreaker2);
+    const details = tierKeys.map(tier => {
+      const golferName = picks[tier] || '';
       const found = findPlayer(golferName, leaderboardData);
       let score = null, scoringScore = null, pos = '-', thru = '-', isCut = false;
       if(found){ score = found.total; pos = found.pos; thru = found.thru; isCut = found.cut; }
@@ -320,11 +339,15 @@ function calcStandings(){
       }
       return { tier, golferName, score, scoringScore, pos, thru, isCut, found: !!found };
     });
-    return { player, totalScore: count > 0 ? total : null, details };
+    return { player, totalScore: count > 0 ? total : null, tiebreaker1, tiebreaker2, details };
   }).sort((a,b) => {
     if(a.totalScore === null) return 1;
     if(b.totalScore === null) return -1;
-    return a.totalScore - b.totalScore;
+    const scoreDiff = a.totalScore - b.totalScore;
+    if(scoreDiff !== 0) return scoreDiff;
+    const tiebreaker1Diff = compareTiebreakers(a.tiebreaker1, b.tiebreaker1);
+    if(tiebreaker1Diff !== 0) return tiebreaker1Diff;
+    return compareTiebreakers(a.tiebreaker2, b.tiebreaker2);
   });
 }
 
@@ -359,6 +382,10 @@ function renderStandings(){
         <svg class="sc-chevron" id="chev-card-${i}" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
       </div>
       <div class="sc-details" id="card-${i}">
+        <div class="sc-tiebreakers">
+          <span class="tiebreaker-pill">Tiebreaker 1: ${s.tiebreaker1 ?? '-'}</span>
+          <span class="tiebreaker-pill">Tiebreaker 2: ${s.tiebreaker2 ?? '-'}</span>
+        </div>
         <div class="golfer-rows">`;
     s.details.forEach(g => {
       const gs = g.scoringScore !== null ? fmtScore(g.scoringScore) : (g.found ? '-' : 'TBD');
