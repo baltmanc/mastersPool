@@ -166,7 +166,7 @@ const PICKS_API_URL = 'https://script.google.com/macros/s/AKfycbyM0NSM6yAgyJzWFW
 let PICKS = {}; // populated on load from Google Sheet
 
 // ================================================================
-//  APP CODE — no need to edit below this line
+//  APP CODE 
 // ================================================================
 
 let leaderboardData = [];
@@ -323,10 +323,18 @@ function compareTiebreakers(a, b){
   return a - b;
 }
 
+function parsePositionRank(pos){
+  if(pos === null || pos === undefined) return null;
+  const s = String(pos).trim().toUpperCase();
+  if(!s || s.includes('CUT') || s === '-') return null;
+  const numeric = parseInt(s.replace(/^T/, ''), 10);
+  return Number.isNaN(numeric) ? null : numeric;
+}
+
 function calcStandings(){
   const tierKeys = Object.keys(TIERS);
   return Object.entries(PICKS).map(([player, picks]) => {
-    let total = 0, count = 0;
+    let total = 0, count = 0, bonusPoints = 0;
     const tiebreaker1 = parseTiebreakerValue(picks.tiebreaker1);
     const tiebreaker2 = parseTiebreakerValue(picks.tiebreaker2);
     const details = tierKeys.map(tier => {
@@ -339,9 +347,22 @@ function calcStandings(){
         total += scoringScore;
         count++;
       }
+      if(found){
+        const rank = parsePositionRank(pos);
+        if(rank === 1) bonusPoints += 5;
+        if(rank !== null && rank <= 5) bonusPoints += 3;
+        if(rank !== null && rank <= 10) bonusPoints += 1;
+      }
       return { tier, golferName, score, scoringScore, pos, thru, isCut, found: !!found };
     });
-    return { player, totalScore: count > 0 ? total : null, tiebreaker1, tiebreaker2, details };
+    return {
+      player,
+      totalScore: count > 0 ? total - bonusPoints : null,
+      bonusPoints,
+      tiebreaker1,
+      tiebreaker2,
+      details
+    };
   }).sort((a,b) => {
     if(a.totalScore === null) return 1;
     if(b.totalScore === null) return -1;
@@ -363,6 +384,7 @@ function renderStandings(){
   if(!Object.keys(PICKS).length){
     html += `<div class="note-banner">⚠️ Could not load picks from Google Sheet — check the Apps Script URL and refresh.</div>`;
   }
+  html += `<div class="note-banner">Scoring bonus: pick the outright winner for an extra -5, each top-5 finisher for an extra -3, and each top-10 finisher for an extra -1. Bonuses stack and are subtracted from your total score.</div>`;
 
   html += '<div class="stats-row">';
   html += `<div class="stat-card"><div class="stat-label">Leader</div><div class="stat-value">${leader?.player||'-'}</div></div>`;
@@ -385,12 +407,13 @@ function renderStandings(){
       </div>
       <div class="sc-details" id="card-${i}">
         <div class="sc-tiebreakers">
+          <span class="tiebreaker-pill">Placement bonus: ${s.bonusPoints ? '-'+s.bonusPoints : '0'}</span>
           <span class="tiebreaker-pill">Tiebreaker 1: ${s.tiebreaker1 ?? '-'}</span>
           <span class="tiebreaker-pill">Tiebreaker 2: ${s.tiebreaker2 ?? '-'}</span>
         </div>
         <div class="golfer-rows">`;
     s.details.forEach(g => {
-      const gs = g.scoringScore !== null ? fmtScore(g.scoringScore) : (g.found ? '-' : 'TBD');
+      const gs = g.scoringScore !== null ? fmtScore(g.scoringScore) : (g.found ? '-' : '-');
       const gc = g.found ? scoreClass(g.scoringScore, g.isCut) : 'even';
       const multiplier = g.isCut && g.score !== null ? `<span class="score-multiplier">x2 from ${fmtScore(g.score)}</span>` : '';
       html += `<div class="golfer-row${g.isCut?' cut-row':''}">
@@ -517,52 +540,52 @@ function switchTab(tab, btn){
 // -- FALLBACK DATA (2025 Masters results for testing) ------------
 function getFallbackData(){
   return [
-    {name:'Rory McIlroy',pos:'1',total:-16,today:1,thru:'F',cut:false},
-    {name:'Justin Rose',pos:'2',total:-14,today:-6,thru:'F',cut:false},
-    {name:'Patrick Reed',pos:'3',total:-12,today:-3,thru:'F',cut:false},
-    {name:'Scottie Scheffler',pos:'4',total:-11,today:-3,thru:'F',cut:false},
-    {name:'Sungjae Im',pos:'T5',total:-10,today:-3,thru:'F',cut:false},
-    {name:'Bryson DeChambeau',pos:'T5',total:-10,today:3,thru:'F',cut:false},
-    {name:'Ludvig Åberg',pos:'7',total:-7,today:0,thru:'F',cut:false},
-    {name:'Xander Schauffele',pos:'T8',total:-6,today:-1,thru:'F',cut:false},
-    {name:'Corey Conners',pos:'T8',total:-6,today:3,thru:'F',cut:false},
-    {name:'Harris English',pos:'T12',total:-4,today:-4,thru:'F',cut:false},
-    {name:'Max Homa',pos:'T12',total:-4,today:-1,thru:'F',cut:false},
-    {name:'Jon Rahm',pos:'T14',total:-3,today:-3,thru:'F',cut:false},
-    {name:'Jordan Spieth',pos:'T14',total:-3,today:-2,thru:'F',cut:false},
-    {name:'Tyrrell Hatton',pos:'T14',total:-3,today:-1,thru:'F',cut:false},
-    {name:'Collin Morikawa',pos:'T14',total:-3,today:0,thru:'F',cut:false},
-    {name:'Hideki Matsuyama',pos:'T21',total:-2,today:-6,thru:'F',cut:false},
-    {name:'Tommy Fleetwood',pos:'T21',total:-2,today:-3,thru:'F',cut:false},
-    {name:'Daniel Berger',pos:'T21',total:-2,today:-3,thru:'F',cut:false},
-    {name:'Viktor Hovland',pos:'T21',total:-2,today:1,thru:'F',cut:false},
-    {name:'Aaron Rai',pos:'T27',total:-1,today:-2,thru:'F',cut:false},
-    {name:'Matt Fitzpatrick',pos:'T40',total:3,today:1,thru:'F',cut:false},
-    {name:'Maverick McNealy',pos:'T32',total:1,today:1,thru:'F',cut:false},
-    {name:'Rasmus Højgaard',pos:'T32',total:1,today:2,thru:'F',cut:false},
-    {name:'Justin Thomas',pos:'T36',total:2,today:-2,thru:'F',cut:false},
-    {name:'Brian Harman',pos:'T36',total:2,today:-1,thru:'F',cut:false},
-    {name:'Patrick Cantlay',pos:'T36',total:2,today:-1,thru:'F',cut:false},
-    {name:'Akshay Bhatia',pos:'T42',total:4,today:-1,thru:'F',cut:false},
-    {name:'Shane Lowry',pos:'T42',total:4,today:9,thru:'F',cut:false},
-    {name:'Wyndham Clark',pos:'T46',total:5,today:2,thru:'F',cut:false},
-    {name:'Sam Burns',pos:'T46',total:5,today:3,thru:'F',cut:false},
-    {name:'Min Woo Lee',pos:'49',total:6,today:2,thru:'F',cut:false},
-    {name:'J.J. Spaun',pos:'50',total:7,today:3,thru:'F',cut:false},
-    {name:'Dustin Johnson',pos:'CUT',total:3,today:null,thru:'-',cut:true},
-    {name:'Russell Henley',pos:'CUT',total:3,today:null,thru:'-',cut:true},
-    {name:'Brooks Koepka',pos:'CUT',total:5,today:null,thru:'-',cut:true},
-    {name:'Cameron Smith',pos:'CUT',total:5,today:null,thru:'-',cut:true},
-    {name:'Cameron Young',pos:'CUT',total:7,today:null,thru:'-',cut:true},
-    {name:'Robert MacIntyre',pos:'CUT',total:6,today:null,thru:'-',cut:true},
-    {name:'Keegan Bradley',pos:'CUT',total:3,today:null,thru:'-',cut:true},
-    {name:'Nico Echavarria',pos:'51',total:8,today:12,thru:'F',cut:false},
-    {name:'Nicolai Højgaard',pos:'CUT',total:6,today:null,thru:'-',cut:true},
-    {name:'Chris Gotterup',pos:'CUT',total:8,today:null,thru:'-',cut:true},
-    {name:'Si Woo Kim',pos:'CUT',total:6,today:null,thru:'-',cut:true},
-    {name:'Brian Harman',pos:'T36',total:2,today:-1,thru:'F',cut:false},
-    {name:'Brian Campbell',pos:'T32',total:1,today:-4,thru:'F',cut:false},
-    {name:'Ben Griffin',pos:'CUT',total:7,today:null,thru:'-',cut:true},
+    {name:'Rory McIlroy',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Justin Rose',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Patrick Reed',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Scottie Scheffler',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Sungjae Im',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Bryson DeChambeau',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Ludvig Åberg',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Xander Schauffele',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Corey Conners',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Harris English',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Max Homa',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Jon Rahm',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Jordan Spieth',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Tyrrell Hatton',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Collin Morikawa',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Hideki Matsuyama',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Tommy Fleetwood',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Daniel Berger',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Viktor Hovland',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Aaron Rai',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Matt Fitzpatrick',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Maverick McNealy',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Rasmus Højgaard',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Justin Thomas',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Brian Harman',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Patrick Cantlay',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Akshay Bhatia',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Shane Lowry',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Wyndham Clark',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Sam Burns',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Min Woo Lee',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'J.J. Spaun',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Dustin Johnson',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Russell Henley',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Brooks Koepka',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Cameron Smith',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Cameron Young',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Robert MacIntyre',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Keegan Bradley',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Nico Echavarria',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Nicolai Højgaard',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Chris Gotterup',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Si Woo Kim',pos:'-',total:null,today:null,thru:'-',cut:false},
+    {name:'Brian Harman',pos:'-',total:null,today:-1,thru:'-',cut:false},
+    {name:'Brian Campbell',pos:'-',total:null,today:-4,thru:'-',cut:false},
+    {name:'Ben Griffin',pos:'-',total:null,today:null,thru:'-',cut:false},
   ];
 }
 
