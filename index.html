@@ -280,9 +280,12 @@ function parseLeaderboard(json){
   if(!Array.isArray(rows)) return [];
   return rows.map(p => {
     const totalRaw = p.total ?? p.totalScore ?? p.score ?? null;
-    const todayRaw = p.today ?? p.currentRound ?? null;
+    const todayRaw = p.currentRoundScore ?? p.today ?? p.currentRound ?? null;
+    const firstName = p.firstName || '';
+    const lastName = p.lastName || '';
+    const name = (firstName + ' ' + lastName).trim() || p.playerName || p.name || p.player || '';
     return {
-      name: p.playerName || p.name || p.player || '',
+      name: name,
       pos:  p.position || p.pos || '-',
       total: parseScoreStr(totalRaw),
       today: parseScoreStr(todayRaw),
