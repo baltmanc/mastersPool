@@ -143,9 +143,8 @@
 // ================================================================
 //  CONFIGURATION — UPDATE THESE BEFORE THE TOURNAMENT
 // ================================================================
-
-const API_KEY = '6729af8c2cmshab6c130b2f9e736p1ed68ejsnb92cfc200029';
-const API_URL = 'https://live-golf-data.p.rapidapi.com/leaderboard?orgId=1&tournId=014&year=2026';
+const API_KEY = 'd3cdd11cd8mshedce03f39600527p180df1jsn95037137574f';
+const API_URL = 'https://live-golf-data.p.rapidapi.com/leaderboard?orgId=1&tournId=014&year=2025';
 
 // -- TIERS -------------------------------------------------------
 // Edit the golfer names in each tier to match the 2026 field.
@@ -513,7 +512,7 @@ function switchTab(tab, btn){
 }
 
 // -- FALLBACK DATA (2025 Masters results for testing) ------------
-function getFallbackData(){
+/*function getFallbackData(){
   return [
     {name:'Rory McIlroy',pos:'1',total:-16,today:1,thru:'F',cut:false},
     {name:'Justin Rose',pos:'2',total:-14,today:-6,thru:'F',cut:false},
@@ -562,7 +561,7 @@ function getFallbackData(){
     {name:'Brian Campbell',pos:'T32',total:1,today:-4,thru:'F',cut:false},
     {name:'Ben Griffin',pos:'CUT',total:7,today:null,thru:'-',cut:true},
   ];
-}
+} */
 
 // -- INIT --------------------------------------------------------
 loadData();
