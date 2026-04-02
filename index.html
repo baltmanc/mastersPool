@@ -276,7 +276,7 @@ async function loadScores(){
 }
 
 function parseLeaderboard(json){
-  const rows = json?.leaderboard || json?.players || json?.results || json || [];
+  const rows = json?.leaderboard || json?.leaderboardRows || json?.players || json?.results || json || [];
   if(!Array.isArray(rows)) return [];
   return rows.map(p => {
     const totalRaw = p.total ?? p.totalScore ?? p.score ?? null;
