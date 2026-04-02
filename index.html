@@ -143,8 +143,8 @@
 // ================================================================
 //  CONFIGURATION — UPDATE THESE BEFORE THE TOURNAMENT
 // ================================================================
-//const API_KEY = 'd3cdd11cd8mshedce03f39600527p180df1jsn95037137574f';
-//const API_URL = 'https://live-golf-data.p.rapidapi.com/leaderboard?orgId=1&tournId=014&year=2025';
+const API_KEY = 'd3cdd11cd8mshedce03f39600527p180df1jsn95037137574f';
+const API_URL = 'https://live-golf-data.p.rapidapi.com/leaderboard?orgId=1&tournId=014&year=2025';
 
 // -- TIERS -------------------------------------------------------
 // Edit the golfer names in each tier to match the 2026 field.
@@ -161,7 +161,7 @@ const TIERS = {
 // -- PICKS -------------------------------------------------------
 // Loaded live from Google Sheet via Apps Script.
 // Falls back to hardcoded values if the sheet can't be reached.
-const PICKS_API_URL = 'https://script.google.com/macros/s/AKfycbxW2GsvpOe5Cn71NtJTwWODn5nLAf0Qa7nmjvQ-WjI2R_jpXz7sKHgf0G0Nkq8H05X4BQ/exec';
+const PICKS_API_URL = 'https://script.google.com/macros/s/AKfycbyM0NSM6yAgyJzWFWrjTKpzkYl-WjK0qKQpb0UoqOFIAjebbOSp1pmVZRxRYT2N71wlkw/exec';
 
 let PICKS = {}; // populated on load from Google Sheet
 
@@ -261,7 +261,7 @@ async function loadScores(){
     const res = await fetch(API_URL,{
       headers:{
         'x-rapidapi-host':'live-golf-data.p.rapidapi.com',
-        'x-rapidapi-key': 'd3cdd11cd8mshedce03f39600527p180df1jsn95037137574fY'
+        'x-rapidapi-key': API_KEY
       }
     });
     if(!res.ok) throw new Error('API '+res.status);
@@ -276,13 +276,16 @@ async function loadScores(){
 }
 
 function parseLeaderboard(json){
-  const rows = json?.leaderboard || json?.players || json?.results || json || [];
+  const rows = json?.leaderboard || json?.leaderboardRows || json?.players || json?.results || json || [];
   if(!Array.isArray(rows)) return [];
   return rows.map(p => {
     const totalRaw = p.total ?? p.totalScore ?? p.score ?? null;
-    const todayRaw = p.today ?? p.currentRound ?? null;
+    const todayRaw = p.currentRoundScore ?? p.today ?? p.currentRound ?? null;
+    const firstName = p.firstName || '';
+    const lastName = p.lastName || '';
+    const name = (firstName + ' ' + lastName).trim() || p.playerName || p.name || p.player || '';
     return {
-      name: p.playerName || p.name || p.player || '',
+      name: name,
       pos:  p.position || p.pos || '-',
       total: parseScoreStr(totalRaw),
       today: parseScoreStr(todayRaw),
@@ -512,7 +515,7 @@ function switchTab(tab, btn){
 }
 
 // -- FALLBACK DATA (2025 Masters results for testing) ------------
-/*function getFallbackData(){
+function getFallbackData(){
   return [
     {name:'Rory McIlroy',pos:'1',total:-16,today:1,thru:'F',cut:false},
     {name:'Justin Rose',pos:'2',total:-14,today:-6,thru:'F',cut:false},
@@ -561,7 +564,7 @@ function switchTab(tab, btn){
     {name:'Brian Campbell',pos:'T32',total:1,today:-4,thru:'F',cut:false},
     {name:'Ben Griffin',pos:'CUT',total:7,today:null,thru:'-',cut:true},
   ];
-} */
+}
 
 // -- INIT --------------------------------------------------------
 loadData();
