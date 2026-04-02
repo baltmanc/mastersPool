@@ -143,8 +143,8 @@
 // ================================================================
 //  CONFIGURATION — UPDATE THESE BEFORE THE TOURNAMENT
 // ================================================================
-const API_KEY = 'd3cdd11cd8mshedce03f39600527p180df1jsn95037137574f';
-const API_URL = 'https://live-golf-data.p.rapidapi.com/leaderboard?orgId=1&tournId=014&year=2025';
+// Leaderboard is fetched via Apps Script to avoid exposing the API key
+// and to benefit from server-side caching. See doGet for details.
 
 // -- TIERS -------------------------------------------------------
 // Edit the golfer names in each tier to match the 2026 field.
@@ -258,12 +258,7 @@ async function loadPicks(){
 
 async function loadScores(){
   try {
-    const res = await fetch(API_URL,{
-      headers:{
-        'x-rapidapi-host':'live-golf-data.p.rapidapi.com',
-        'x-rapidapi-key': API_KEY
-      }
-    });
+    const res = await fetch(PICKS_API_URL + '?action=leaderboard');
     if(!res.ok) throw new Error('API '+res.status);
     const json = await res.json();
     leaderboardData = parseLeaderboard(json);
