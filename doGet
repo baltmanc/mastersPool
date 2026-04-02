@@ -1,0 +1,66 @@
+function doGet(e) {
+  const action = e?.parameter?.action || 'picks';
+  
+  if(action === 'leaderboard') {
+    const data = getLeaderboard();
+    return ContentService.createTextOutput(JSON.stringify(data))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  const sheet = SpreadsheetApp.getActiveSpreadsheet()
+                               .getSheetByName('Form Responses 1');
+  const rows = sheet.getDataRange().getValues();
+  const headers = rows[0];
+
+  const picks = rows.slice(1)
+    .filter(row => row[0] !== '') // skip empty rows
+    .map(row => {
+      // Map each column by header name
+      const get = (name) => {
+        const i = headers.findIndex(h => h.toString().toLowerCase().includes(name.toLowerCase()));
+        return i >= 0 ? row[i].toString().trim() : '';
+      };
+
+      const tier7Dropdown = get('Tier #7');
+      const tier7WriteIn  = get('If you chose another golfer for tier 7');
+      
+      return {
+        name:        get('Full Name'),
+        venmo:       get('Venmo'),
+        tier1:       get('Tier #1'),
+        tier2:       get('Tier #2'),
+        tier3:       get('Tier #3'),
+        tier4:       get('Tier #4'),
+        tier5:       get('Tier #5'),
+        tier6:       get('Tier #6'),
+        tier7:       tier7WriteIn !== '' ? tier7WriteIn : tier7Dropdown,
+        tiebreaker1: get('Tie Breaker #1'),
+        tiebreaker2: get('Tie Breaker #2'),
+      };
+    });
+
+  return ContentService
+    .createTextOutput(JSON.stringify({ picks }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function getLeaderboard() {
+  const cache = CacheService.getScriptCache();
+  const cached = cache.get('leaderboard');
+  if (cached) {
+    return JSON.parse(cached);
+  }
+
+  const url = 'https://live-golf-data.p.rapidapi.com/leaderboard?orgId=1&tournId=014&year=2025';
+  const options = {
+    method: 'get',
+    headers: {
+      'x-rapidapi-host': 'live-golf-data.p.rapidapi.com',
+      'x-rapidapi-key': 'd3cdd11cd8mshedce03f39600527p180df1jsn95037137574f'
+    },
+    muteHttpExceptions: true
+  };
+  const response = UrlFetchApp.fetch(url, options);
+  const data = response.getContentText();
+  cache.put('leaderboard', data, 60); // cache for 60 seconds
+  return JSON.parse(data);
+}
