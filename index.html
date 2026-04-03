@@ -14,9 +14,6 @@
   .header{background:linear-gradient(135deg,#1a5c2e 0%,#2d8b4e 100%);border-radius:12px;padding:20px 24px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
   .header-left h1{font-size:22px;font-weight:500;color:#fff;letter-spacing:.3px}
   .header-left p{font-size:13px;color:rgba(255,255,255,.75);margin-top:2px}
-  .refresh-btn{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background .15s}
-  .refresh-btn:hover{background:rgba(255,255,255,.25)}
-  .refresh-btn svg{width:14px;height:14px}
   .status-dot{width:8px;height:8px;border-radius:50%;background:#4ade80;display:inline-block;margin-right:6px}
   .status-dot.loading{background:#fbbf24;animation:pulse 1s infinite}
   .status-dot.error{background:#f87171}
@@ -120,10 +117,6 @@
     </div>
     <div style="display:flex;align-items:center;gap:10px">
       <span id="lastUpdated" style="font-size:12px;color:rgba(255,255,255,.85)">Last updated: --</span>
-      <button class="refresh-btn" onclick="loadData()">
-        <svg id="refreshIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-        Refresh
-      </button>
     </div>
   </div>
 
@@ -161,7 +154,10 @@ const TIERS = {
 // -- PICKS -------------------------------------------------------
 // Loaded live from Google Sheet via Apps Script.
 // Falls back to hardcoded values if the sheet can't be reached.
+
+
 const PICKS_API_URL = 'https://script.google.com/macros/s/AKfycbw8WwSCEzGjpvjqhafswQuMhbXLDuwaND-dml0AymMLDg9WkydX14SjWJBk1AOLJ3YqCQ/exec';
+
 
 let PICKS = {}; // populated on load from Google Sheet
 
@@ -202,14 +198,12 @@ function scoreClass(s, isCut){
 
 async function loadData(){
   setStatus('loading','Refreshing scores...');
-  document.getElementById('refreshIcon').classList.add('spinning');
 
   // Fetch picks and scores in parallel
   const [picksOk, scoresOk] = await Promise.all([loadPicks(), loadScores()]);
 
   const nowLabel = new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   document.getElementById('lastUpdated').textContent = 'Last updated: '+nowLabel;
-  document.getElementById('refreshIcon').classList.remove('spinning');
 
   if(scoresOk && picksOk){
     setStatus('live','Live · '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
