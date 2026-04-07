@@ -200,10 +200,25 @@ async function loadData(){
   setStatus('loading','Refreshing scores...');
 
   // Fetch picks and scores in parallel
-  const [picksOk, scoresOk] = await Promise.all([loadPicks(), loadScores()]);
+  const [nextPicks, nextScores] = await Promise.all([loadPicks(), loadScores()]);
+  const picksOk = !!nextPicks;
+  const scoresOk = Array.isArray(nextScores) && nextScores.length > 0;
 
-  const nowLabel = new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
-  document.getElementById('lastUpdated').textContent = 'Last updated: '+nowLabel;
+  if(picksOk) PICKS = nextPicks;
+  if(scoresOk) leaderboardData = nextScores;
+  if(!scoresOk && !leaderboardData.length) leaderboardData = getFallbackData();
+
+  if(picksOk || scoresOk){
+    writeCache({
+      picks: PICKS,
+      leaderboardData: scoresOk ? leaderboardData : readCache()?.leaderboardData || [],
+      updatedAt: Date.now(),
+    });
+    setLastUpdatedLabel(Date.now(), false);
+  } else {
+    const cached = readCache();
+    setLastUpdatedLabel(cached?.updatedAt || null, !!cached?.updatedAt);
+  }
 
   if(scoresOk && picksOk){
     setStatus('live','Live · '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
@@ -224,14 +239,14 @@ async function loadPicks(){
     const rows = json.picks || json;
     if(!Array.isArray(rows) || !rows.length) throw new Error('empty');
 
-    PICKS = {};
+    const picks = {};
     rows.forEach(row => {
       const name = (row.name || row['Full Name'] || '').trim();
       if(!name) return;
       // Prefer write-in for Tier 7, fall back to dropdown
       const tier7 = (row.tier7WriteIn || row['If you chose another golfer for tier 7'] || '').trim()
                  || (row.tier7 || row['Tier #7'] || '').trim();
-      PICKS[name] = {
+      picks[name] = {
         'Tier 1': (row.tier1 || row['Tier #1'] || '').trim(),
         'Tier 2': (row.tier2 || row['Tier #2'] || '').trim(),
         'Tier 3': (row.tier3 || row['Tier #3'] || '').trim(),
@@ -243,10 +258,10 @@ async function loadPicks(){
         tiebreaker2: (row.tiebreaker2 || row['Tie Breaker #2'] || '').trim(),
       };
     });
-    return true;
+    return picks;
   } catch(e) {
     console.warn('Picks load failed:', e);
-    return false;
+    return null;
   }
 }
 
@@ -255,13 +270,67 @@ async function loadScores(){
     const res = await fetch(PICKS_API_URL + '?action=leaderboard');
     if(!res.ok) throw new Error('API '+res.status);
     const json = await res.json();
-    leaderboardData = parseLeaderboard(json);
-    if(!leaderboardData.length) throw new Error('empty');
-    return true;
+    const parsed = parseLeaderboard(json);
+    if(!parsed.length) throw new Error('empty');
+    return parsed;
   } catch(e){
-    leaderboardData = getFallbackData();
-    return false;
+    return null;
   }
+}
+
+function readCache(){
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if(!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch(e){
+    console.warn('Cache read failed:', e);
+    return null;
+  }
+}
+
+function writeCache(data){
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+  } catch(e){
+    console.warn('Cache write failed:', e);
+  }
+}
+
+function setLastUpdatedLabel(timestamp, isCached){
+  const el = document.getElementById('lastUpdated');
+  if(!timestamp){
+    el.textContent = 'Last updated: waiting for scheduled refresh';
+    return;
+  }
+  const label = new Date(timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  el.textContent = 'Last updated: ' + label + (isCached ? ' (cached)' : '');
+}
+
+function initializeFromCache(){
+  const cached = readCache();
+  const cachedPicks = cached?.picks && typeof cached.picks === 'object' ? cached.picks : null;
+  const cachedScores = Array.isArray(cached?.leaderboardData) ? cached.leaderboardData : null;
+  const hasCachedPicks = !!cachedPicks && Object.keys(cachedPicks).length > 0;
+  const hasCachedScores = !!cachedScores && cachedScores.length > 0;
+
+  PICKS = hasCachedPicks ? cachedPicks : {};
+  leaderboardData = hasCachedScores ? cachedScores : getFallbackData();
+
+  setLastUpdatedLabel(cached?.updatedAt || null, true);
+
+  if(hasCachedPicks && hasCachedScores){
+    setStatus('live','Cached · waiting for scheduled refresh');
+  } else if(hasCachedScores){
+    setStatus('error','Scores cached · picks unavailable');
+  } else if(hasCachedPicks){
+    setStatus('error','Picks cached · using fallback scores');
+  } else {
+    setStatus('error','No cached data yet · scheduled refresh will fetch live data');
+  }
+
+  renderAll();
 }
 
 function parseLeaderboard(json){
@@ -579,7 +648,7 @@ function getFallbackData(){
 }
 
 // -- INIT --------------------------------------------------------
-loadData();
+initializeFromCache();
 //setInterval(loadData, 60000);//refresh every minute
 </script>
 </body>
