@@ -157,6 +157,7 @@ const TIERS = {
 
 
 const PICKS_API_URL = 'https://script.google.com/macros/s/AKfycbyGpjolmJ1M3pPQAWPzTxG7qRYIebS69lwpKg7_XUGv08MVl3Ep9Sc2MKjlBjmDw_82zg/exec';
+const CACHE_KEY = 'mastersPool:dataCache';
 
 
 let PICKS = {}; // populated on load from Google Sheet
@@ -166,6 +167,7 @@ let PICKS = {}; // populated on load from Google Sheet
 // ================================================================
 
 let leaderboardData = [];
+let picksLoadState = 'waiting';
 
 function normName(n){
   if(!n) return '';
@@ -205,6 +207,7 @@ async function loadData(){
   const scoresOk = Array.isArray(nextScores) && nextScores.length > 0;
 
   if(picksOk) PICKS = nextPicks;
+  picksLoadState = picksOk ? 'loaded' : (Object.keys(PICKS).length ? 'cached' : 'error');
   if(scoresOk) leaderboardData = nextScores;
   if(!scoresOk && !leaderboardData.length) leaderboardData = getFallbackData();
 
@@ -316,6 +319,7 @@ function initializeFromCache(){
   const hasCachedScores = !!cachedScores && cachedScores.length > 0;
 
   PICKS = hasCachedPicks ? cachedPicks : {};
+  picksLoadState = hasCachedPicks ? 'cached' : 'waiting';
   leaderboardData = hasCachedScores ? cachedScores : getFallbackData();
 
   setLastUpdatedLabel(cached?.updatedAt || null, true);
@@ -439,7 +443,7 @@ function renderStandings(){
   let html = '';
 
   // Warn if picks couldn't be loaded from sheet
-  if(!Object.keys(PICKS).length){
+  if(picksLoadState === 'error'){
     html += `<div class="note-banner">⚠️ Could not load picks from Google Sheet — check the Apps Script URL and refresh.</div>`;
   }
   html += `<div class="note-banner">Scoring bonus: pick the outright winner for an extra -5, each top-5 finisher for an extra -3, and each top-10 finisher for an extra -1. Bonuses stack and are subtracted from your total score.</div>`;
