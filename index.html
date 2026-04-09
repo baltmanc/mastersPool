@@ -386,6 +386,21 @@ function parseTiebreakerValue(value){
   return Number.isNaN(parsed) ? null : parsed;
 }
 
+function getTiebreakerGolfer(value){
+  if(value === null || value === undefined) return '';
+  return String(value).trim();
+}
+
+function getTiebreaker1Data(value){
+  const golferName = getTiebreakerGolfer(value);
+  if(!golferName) return { golferName: '', score: null };
+  const found = findPlayer(golferName, leaderboardData);
+  return {
+    golferName,
+    score: found ? found.total : null,
+  };
+}
+
 function compareTiebreakers(a, b){
   if(a === null && b === null) return 0;
   if(a === null) return 1;
@@ -405,7 +420,7 @@ function calcStandings(){
   const tierKeys = Object.keys(TIERS);
   return Object.entries(PICKS).map(([player, picks]) => {
     let total = 0, count = 0, bonusPoints = 0;
-    const tiebreaker1 = parseTiebreakerValue(picks.tiebreaker1);
+    const tiebreaker1Data = getTiebreaker1Data(picks.tiebreaker1);
     const tiebreaker2 = parseTiebreakerValue(picks.tiebreaker2);
     const details = tierKeys.map(tier => {
       const golferName = picks[tier] || '';
@@ -429,7 +444,8 @@ function calcStandings(){
       player,
       totalScore: count > 0 ? total - bonusPoints : null,
       bonusPoints,
-      tiebreaker1,
+      tiebreaker1Golfer: tiebreaker1Data.golferName,
+      tiebreaker1Score: tiebreaker1Data.score,
       tiebreaker2,
       details
     };
@@ -438,10 +454,16 @@ function calcStandings(){
     if(b.totalScore === null) return -1;
     const scoreDiff = a.totalScore - b.totalScore;
     if(scoreDiff !== 0) return scoreDiff;
-    const tiebreaker1Diff = compareTiebreakers(a.tiebreaker1, b.tiebreaker1);
+    const tiebreaker1Diff = compareTiebreakers(a.tiebreaker1Score, b.tiebreaker1Score);
     if(tiebreaker1Diff !== 0) return tiebreaker1Diff;
     return compareTiebreakers(a.tiebreaker2, b.tiebreaker2);
   });
+}
+
+function formatTiebreaker1Label(standing){
+  if(!standing.tiebreaker1Golfer) return '-';
+  if(standing.tiebreaker1Score === null) return standing.tiebreaker1Golfer;
+  return standing.tiebreaker1Golfer + ' (' + fmtScore(standing.tiebreaker1Score) + ')';
 }
 
 function renderStandings(){
@@ -478,7 +500,7 @@ function renderStandings(){
       <div class="sc-details" id="card-${i}">
         <div class="sc-tiebreakers">
           <span class="tiebreaker-pill">Placement bonus: ${s.bonusPoints ? '-'+s.bonusPoints : '0'}</span>
-          <span class="tiebreaker-pill">Tiebreaker 1: ${s.tiebreaker1 ?? '-'}</span>
+          <span class="tiebreaker-pill">Tiebreaker 1: ${formatTiebreaker1Label(s)}</span>
           <span class="tiebreaker-pill">Tiebreaker 2: ${s.tiebreaker2 ?? '-'}</span>
         </div>
         <div class="golfer-rows">`;
