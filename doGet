@@ -53,6 +53,7 @@ const SCHEDULE_END_MINUTE = 17 * 60 + 30;
 const LEADERBOARD_CACHE_KEY = 'leaderboard';
 const LEADERBOARD_LAST_GOOD_KEY = 'leaderboard:lastGood';
 const LEADERBOARD_LAST_FETCH_KEY = 'leaderboard:lastFetchEpochMs';
+const RESPONSE_CACHE_TTL_SECONDS = 60;
 
 function getLeaderboard() {
   const cache = CacheService.getScriptCache();
@@ -68,7 +69,7 @@ function getLeaderboard() {
 
   if (!shouldRefreshLeaderboardNow(now, lastFetchEpochMs)) {
     if (cachedLastGood) {
-      cache.put(LEADERBOARD_CACHE_KEY, cachedLastGood, REFRESH_INTERVAL_SECONDS);
+      cache.put(LEADERBOARD_CACHE_KEY, cachedLastGood, RESPONSE_CACHE_TTL_SECONDS);
       return JSON.parse(cachedLastGood);
     }
     return { leaderboard: [], cached: false, stale: true };
@@ -91,13 +92,13 @@ function getLeaderboard() {
     }
 
     const data = response.getContentText();
-    cache.put(LEADERBOARD_CACHE_KEY, data, REFRESH_INTERVAL_SECONDS);
+    cache.put(LEADERBOARD_CACHE_KEY, data, RESPONSE_CACHE_TTL_SECONDS);
     properties.setProperty(LEADERBOARD_LAST_GOOD_KEY, data);
     properties.setProperty(LEADERBOARD_LAST_FETCH_KEY, String(now));
     return JSON.parse(data);
   } catch (error) {
     if (cachedLastGood) {
-      cache.put(LEADERBOARD_CACHE_KEY, cachedLastGood, REFRESH_INTERVAL_SECONDS);
+      cache.put(LEADERBOARD_CACHE_KEY, cachedLastGood, RESPONSE_CACHE_TTL_SECONDS);
       return JSON.parse(cachedLastGood);
     }
     throw error;
@@ -108,7 +109,6 @@ function shouldRefreshLeaderboardNow(nowEpochMs, lastFetchEpochMs) {
   const nowParts = getNowParts(nowEpochMs);
   if (!isWithinScheduledWindow(nowParts)) return false;
   if (!lastFetchEpochMs) return true;
-  if (nowParts.minute % REFRESH_INTERVAL_MINUTES !== 0) return false;
   return (nowEpochMs - lastFetchEpochMs) >= REFRESH_INTERVAL_SECONDS * 1000;
 }
 
