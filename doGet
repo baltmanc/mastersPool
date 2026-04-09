@@ -43,11 +43,35 @@ function doGet(e) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+const SCHEDULE_TIME_ZONE = 'America/New_York';
+const REFRESH_INTERVAL_SECONDS = 300;
+const REFRESH_INTERVAL_MINUTES = 5;
+const SCHEDULE_START_DATE = '2026-04-09';
+const SCHEDULE_END_DATE = '2026-04-12';
+const SCHEDULE_START_MINUTE = 8 * 60;
+const SCHEDULE_END_MINUTE = 17 * 60 + 30;
+const LEADERBOARD_CACHE_KEY = 'leaderboard';
+const LEADERBOARD_LAST_GOOD_KEY = 'leaderboard:lastGood';
+const LEADERBOARD_LAST_FETCH_KEY = 'leaderboard:lastFetchEpochMs';
+
 function getLeaderboard() {
   const cache = CacheService.getScriptCache();
-  const cached = cache.get('leaderboard');
+  const cached = cache.get(LEADERBOARD_CACHE_KEY);
   if (cached) {
     return JSON.parse(cached);
+  }
+
+  const properties = PropertiesService.getScriptProperties();
+  const cachedLastGood = properties.getProperty(LEADERBOARD_LAST_GOOD_KEY);
+  const lastFetchEpochMs = Number(properties.getProperty(LEADERBOARD_LAST_FETCH_KEY) || '0');
+  const now = Date.now();
+
+  if (!shouldRefreshLeaderboardNow(now, lastFetchEpochMs)) {
+    if (cachedLastGood) {
+      cache.put(LEADERBOARD_CACHE_KEY, cachedLastGood, REFRESH_INTERVAL_SECONDS);
+      return JSON.parse(cachedLastGood);
+    }
+    return { leaderboard: [], cached: false, stale: true };
   }
 
   const url = 'https://live-golf-data.p.rapidapi.com/leaderboard?orgId=1&tournId=014&year=2025';
@@ -59,8 +83,47 @@ function getLeaderboard() {
     },
     muteHttpExceptions: true
   };
-  const response = UrlFetchApp.fetch(url, options);
-  const data = response.getContentText();
-  cache.put('leaderboard', data, 60); // cache for 60 seconds
-  return JSON.parse(data);
+  try {
+    const response = UrlFetchApp.fetch(url, options);
+    const statusCode = response.getResponseCode();
+    if (statusCode < 200 || statusCode >= 300) {
+      throw new Error('Leaderboard API returned ' + statusCode);
+    }
+
+    const data = response.getContentText();
+    cache.put(LEADERBOARD_CACHE_KEY, data, REFRESH_INTERVAL_SECONDS);
+    properties.setProperty(LEADERBOARD_LAST_GOOD_KEY, data);
+    properties.setProperty(LEADERBOARD_LAST_FETCH_KEY, String(now));
+    return JSON.parse(data);
+  } catch (error) {
+    if (cachedLastGood) {
+      cache.put(LEADERBOARD_CACHE_KEY, cachedLastGood, REFRESH_INTERVAL_SECONDS);
+      return JSON.parse(cachedLastGood);
+    }
+    throw error;
+  }
+}
+
+function shouldRefreshLeaderboardNow(nowEpochMs, lastFetchEpochMs) {
+  const nowParts = getNowParts(nowEpochMs);
+  if (!isWithinScheduledWindow(nowParts)) return false;
+  if (!lastFetchEpochMs) return true;
+  if (nowParts.minute % REFRESH_INTERVAL_MINUTES !== 0) return false;
+  return (nowEpochMs - lastFetchEpochMs) >= REFRESH_INTERVAL_SECONDS * 1000;
+}
+
+function getNowParts(nowEpochMs) {
+  const date = new Date(nowEpochMs || Date.now());
+  return {
+    dateKey: Utilities.formatDate(date, SCHEDULE_TIME_ZONE, 'yyyy-MM-dd'),
+    hour: Number(Utilities.formatDate(date, SCHEDULE_TIME_ZONE, 'HH')),
+    minute: Number(Utilities.formatDate(date, SCHEDULE_TIME_ZONE, 'mm')),
+  };
+}
+
+function isWithinScheduledWindow(parts) {
+  if (parts.dateKey < SCHEDULE_START_DATE || parts.dateKey > SCHEDULE_END_DATE) return false;
+  const minuteOfDay = parts.hour * 60 + parts.minute;
+  if (minuteOfDay < SCHEDULE_START_MINUTE || minuteOfDay > SCHEDULE_END_MINUTE) return false;
+  return true;
 }

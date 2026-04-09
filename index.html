@@ -158,12 +158,6 @@ const TIERS = {
 
 const PICKS_API_URL = 'https://script.google.com/macros/s/AKfycbySIA69mJ3vfL98MJdtEOAlxekd-cDvMNFjT41Ca0uFc_nlFYeOXeQTkTmx7CML_15z/exec';
 const CACHE_KEY = 'mastersPool:dataCache';
-const SCHEDULE_TIME_ZONE = 'America/New_York';
-const REFRESH_INTERVAL_MINUTES = 5;
-const SCHEDULE_START_DATE = '2026-04-09';
-const SCHEDULE_END_DATE = '2026-04-12';
-const SCHEDULE_START_MINUTE = 8 * 60;
-const SCHEDULE_END_MINUTE = 17 * 60 + 30;
 
 
 let PICKS = {}; // populated on load from Google Sheet
@@ -174,8 +168,6 @@ let PICKS = {}; // populated on load from Google Sheet
 
 let leaderboardData = [];
 let picksLoadState = 'waiting';
-let scheduleTimerId = null;
-let lastScheduleSlotKey = null;
 
 function normName(n){
   if(!n) return '';
@@ -312,7 +304,7 @@ function writeCache(data){
 function setLastUpdatedLabel(timestamp, isCached){
   const el = document.getElementById('lastUpdated');
   if(!timestamp){
-    el.textContent = 'Last updated: waiting for scheduled refresh';
+    el.textContent = 'Last updated: waiting for shared data';
     return;
   }
   const label = new Date(timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
@@ -333,86 +325,16 @@ function initializeFromCache(){
   setLastUpdatedLabel(cached?.updatedAt || null, true);
 
   if(hasCachedPicks && hasCachedScores){
-    setStatus('live','Cached · waiting for scheduled refresh');
+    setStatus('live','Cached · checking shared data');
   } else if(hasCachedScores){
     setStatus('error','Scores cached · picks unavailable');
   } else if(hasCachedPicks){
     setStatus('error','Picks cached · using fallback scores');
   } else {
-    setStatus('error','No cached data yet · scheduled refresh will fetch live data');
+    setStatus('loading','No cached data yet · loading shared data');
   }
 
   renderAll();
-}
-
-function getScheduleNowParts(date = new Date()){
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: SCHEDULE_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  }).formatToParts(date);
-
-  const mapped = {};
-  parts.forEach(part => {
-    if(part.type !== 'literal') mapped[part.type] = part.value;
-  });
-
-  return {
-    dateKey: mapped.year + '-' + mapped.month + '-' + mapped.day,
-    hour: Number(mapped.hour),
-    minute: Number(mapped.minute),
-    second: Number(mapped.second),
-  };
-}
-
-function isWithinScheduledWindow(parts){
-  if(parts.dateKey < SCHEDULE_START_DATE || parts.dateKey > SCHEDULE_END_DATE) return false;
-  const minuteOfDay = parts.hour * 60 + parts.minute;
-  return minuteOfDay >= SCHEDULE_START_MINUTE && minuteOfDay <= SCHEDULE_END_MINUTE;
-}
-
-function getScheduleSlotKey(parts){
-  return parts.dateKey + ' ' + String(parts.hour).padStart(2, '0') + ':' + String(parts.minute).padStart(2, '0');
-}
-
-function shouldTriggerScheduledRefresh(parts){
-  if(!isWithinScheduledWindow(parts)) return false;
-  if(parts.second >= 10) return false;
-  if(parts.minute % REFRESH_INTERVAL_MINUTES !== 0) return false;
-  return getScheduleSlotKey(parts) !== lastScheduleSlotKey;
-}
-
-async function runScheduledRefreshIfDue(){
-  const parts = getScheduleNowParts();
-  if(!shouldTriggerScheduledRefresh(parts)) return;
-  lastScheduleSlotKey = getScheduleSlotKey(parts);
-  await loadData();
-}
-
-function scheduleNextRefreshCheck(){
-  if(scheduleTimerId !== null) clearTimeout(scheduleTimerId);
-
-  const now = new Date();
-  const delayMs = ((60 - now.getSeconds()) * 1000) - now.getMilliseconds();
-  scheduleTimerId = setTimeout(async () => {
-    await runScheduledRefreshIfDue();
-    scheduleNextRefreshCheck();
-  }, Math.max(delayMs, 250));
-}
-
-function initializeScheduledRefresh(){
-  const parts = getScheduleNowParts();
-  if(shouldTriggerScheduledRefresh(parts)){
-    lastScheduleSlotKey = getScheduleSlotKey(parts);
-    loadData().finally(scheduleNextRefreshCheck);
-    return;
-  }
-  scheduleNextRefreshCheck();
 }
 
 function parseLeaderboard(json){
@@ -731,7 +653,7 @@ function getFallbackData(){
 
 // -- INIT --------------------------------------------------------
 initializeFromCache();
-initializeScheduledRefresh();
+loadData();
 </script>
 </body>
 </html>
