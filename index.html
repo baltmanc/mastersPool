@@ -420,7 +420,7 @@ function calcStandings(){
       if(found){
         const rank = parsePositionRank(pos);
         if(rank === 1) bonusPoints += 5;
-        else if(rank !== null && rank <= 4) bonusPoints += 3;
+        else if(rank !== null && rank <= 5) bonusPoints += 3;
         else if(rank !== null && rank <= 10) bonusPoints += 1;
       }
       return { tier, golferName, score, scoringScore, pos, thru, isCut, found: !!found };
