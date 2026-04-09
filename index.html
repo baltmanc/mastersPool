@@ -156,8 +156,9 @@ const TIERS = {
 // Falls back to hardcoded values if the sheet can't be reached.
 
 
-const PICKS_API_URL = 'https://script.google.com/macros/s/AKfycbw56xgdmPB5nSHoK7SJ-H8RFeGohCOWzmgCYoHd_nHaKCTx75UfifJZ52xds1iBFgdgSw/exec';
+const PICKS_API_URL = 'https://script.google.com/macros/s/AKfycbyqPqfWxJ-Ddnb7pbXUQd0w21Ij8v9ZJUjr8owpCa6xWrU33ld-I4kPCR3DOnnqRHY3WA/exec';
 const CACHE_KEY = 'mastersPool:dataCache';
+const CLIENT_REFRESH_INTERVAL_MS = 60000;
 
 
 let PICKS = {}; // populated on load from Google Sheet
@@ -168,6 +169,7 @@ let PICKS = {}; // populated on load from Google Sheet
 
 let leaderboardData = [];
 let picksLoadState = 'waiting';
+let isLoadingData = false;
 
 function normName(n){
   if(!n) return '';
@@ -199,39 +201,45 @@ function scoreClass(s, isCut){
 }
 
 async function loadData(){
+  if(isLoadingData) return;
+  isLoadingData = true;
   setStatus('loading','Refreshing scores...');
 
   // Fetch picks and scores in parallel
-  const [nextPicks, nextScores] = await Promise.all([loadPicks(), loadScores()]);
-  const picksOk = !!nextPicks;
-  const scoresOk = Array.isArray(nextScores) && nextScores.length > 0;
+  try {
+    const [nextPicks, nextScores] = await Promise.all([loadPicks(), loadScores()]);
+    const picksOk = !!nextPicks;
+    const scoresOk = Array.isArray(nextScores) && nextScores.length > 0;
 
-  if(picksOk) PICKS = nextPicks;
-  picksLoadState = picksOk ? 'loaded' : (Object.keys(PICKS).length ? 'cached' : 'error');
-  if(scoresOk) leaderboardData = nextScores;
-  if(!scoresOk && !leaderboardData.length) leaderboardData = getFallbackData();
+    if(picksOk) PICKS = nextPicks;
+    picksLoadState = picksOk ? 'loaded' : (Object.keys(PICKS).length ? 'cached' : 'error');
+    if(scoresOk) leaderboardData = nextScores;
+    if(!scoresOk && !leaderboardData.length) leaderboardData = getFallbackData();
 
-  if(picksOk || scoresOk){
-    writeCache({
-      picks: PICKS,
-      leaderboardData: scoresOk ? leaderboardData : readCache()?.leaderboardData || [],
-      updatedAt: Date.now(),
-    });
-    setLastUpdatedLabel(Date.now(), false);
-  } else {
-    const cached = readCache();
-    setLastUpdatedLabel(cached?.updatedAt || null, !!cached?.updatedAt);
+    if(picksOk || scoresOk){
+      writeCache({
+        picks: PICKS,
+        leaderboardData: scoresOk ? leaderboardData : readCache()?.leaderboardData || [],
+        updatedAt: Date.now(),
+      });
+      setLastUpdatedLabel(Date.now(), false);
+    } else {
+      const cached = readCache();
+      setLastUpdatedLabel(cached?.updatedAt || null, !!cached?.updatedAt);
+    }
+
+    if(scoresOk && picksOk){
+      setStatus('live','Live · '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
+    } else if(!scoresOk){
+      setStatus('error','Using 2025 demo data — tournament not yet live');
+    } else {
+      setStatus('error','Could not load picks from Google Sheet');
+    }
+
+    renderAll();
+  } finally {
+    isLoadingData = false;
   }
-
-  if(scoresOk && picksOk){
-    setStatus('live','Live · '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
-  } else if(!scoresOk){
-    setStatus('error','Using 2025 demo data — tournament not yet live');
-  } else {
-    setStatus('error','Could not load picks from Google Sheet');
-  }
-
-  renderAll();
 }
 
 async function loadPicks(){
@@ -654,6 +662,7 @@ function getFallbackData(){
 // -- INIT --------------------------------------------------------
 initializeFromCache();
 loadData();
+setInterval(loadData, CLIENT_REFRESH_INTERVAL_MS);
 </script>
 </body>
 </html>
